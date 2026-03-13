@@ -22,95 +22,46 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        # cache: 'npm'
+        # NO CACHE HERE - we'll handle it manually
 
     # ---------- CLIENT TESTS ----------
-    - name: Install client dependencies
+    - name: Client - Clean install
       working-directory: ./client
       run: |
-        npm ci
-        # Using legacy-peer-deps as we saw you needed it
+        # Remove everything for a fresh start
+        rm -rf node_modules package-lock.json
+        npm cache clean --force
+        # Install with legacy peer deps
+        npm install --legacy-peer-deps
+        # Show what's installed
+        npm list --depth=0
 
-    # - name: Lint client code
-    #   working-directory: ./client
-    #   run: |
-    #     if [ -f .eslintrc.js ]; then
-    #       npx eslint src/ --ext .js,.jsx || echo "Linting issues found but continuing"
-    #     else
-    #       echo "No ESLint config found, skipping lint"
-    #     fi
-
-    - name: Test client build
+    - name: Client - Build
       working-directory: ./client
       run: npm run build
       env:
-        CI: false # Prevents treating warnings as errors
+        CI: false
         DISABLE_ESLINT_PLUGIN: true
+        NODE_OPTIONS: --openssl-legacy-provider
 
     # ---------- SERVER TESTS ----------
-    - name: Install server dependencies
+    - name: Server - Clean install
       working-directory: ./server
       run: |
-        # Completely remove everything
+        # Fresh install every time
         rm -rf node_modules package-lock.json
-        # Clear npm cache
         npm cache clean --force
-        # Fresh install
         npm install
-        # Show what's installed (for debugging)
         npm list --depth=0
 
-    - name: Test server startup
+    - name: Server - Test startup
       working-directory: ./server
       run: |
-        # Test that server starts without errors
         node -e "require('./index.js')" &
         SERVER_PID=$!
         sleep 5
         kill $SERVER_PID || true
       env:
-        PORT: 5001 # Use different port for testing
+        PORT: 5001
 
-    # ---------- DOCKER (Optional) ----------
-    # Uncomment if you want to build Docker images
-    # - name: Build Docker image (client)
-    #   run: docker build -t chat-client -f client/Dockerfile client/
-    #
-    # - name: Build Docker image (server)
-    #   run: docker build -t chat-server -f server/Dockerfile server/
-
-    # ---------- CACHE DEPENDENCIES ----------
-    - name: Cache client dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.npm
-        key: ${{ runner.os }}-node-${{ hashFiles('client/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
-
-    # - name: Cache server dependencies
-    #   uses: actions/cache@v3
-    #   with:
-    #     path: ~/.npm
-    #     key: ${{ runner.os }}-node-${{ hashFiles('server/package-lock.json') }}
-    #     restore-keys: |
-    #       ${{ runner.os }}-node-
-
-  # ---------- DEPLOY JOB (Optional) ----------
-  # deploy:
-  #   needs: test-and-build
-  #   runs-on: ubuntu-latest
-  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
-  #   steps:
-  #   - name: Checkout repository
-  #     uses: actions/checkout@v3
-
-  #   - name: Deploy to production
-  #     run: |
-  #       echo "Add your deployment commands here"
-  #       # Example: Deploy to Vercel, Netlify, Heroku, etc.
-  #       # npm run deploy
-  #     env:
-  #       # Add your deployment secrets here
-  #       DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+    # NO CACHING AT ALL - we want fresh installs every time
