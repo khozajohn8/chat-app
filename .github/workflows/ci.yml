@@ -50,7 +50,11 @@ jobs:
     # ---------- SERVER TESTS ----------
     - name: Install server dependencies
       working-directory: ./server
-      run: npm ci
+      run: |
+        # Remove any cached node_modules
+        rm -rf node_modules
+        # Use npm install instead of npm ci
+        npm install
 
     - name: Test server startup
       working-directory: ./server
