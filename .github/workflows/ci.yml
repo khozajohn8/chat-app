@@ -88,13 +88,13 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-node-
 
-    - name: Cache server dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.npm
-        key: ${{ runner.os }}-node-${{ hashFiles('server/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
+    # - name: Cache server dependencies
+    #   uses: actions/cache@v3
+    #   with:
+    #     path: ~/.npm
+    #     key: ${{ runner.os }}-node-${{ hashFiles('server/package-lock.json') }}
+    #     restore-keys: |
+    #       ${{ runner.os }}-node-
 
   # ---------- DEPLOY JOB (Optional) ----------
   # deploy:
