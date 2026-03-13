@@ -12,7 +12,7 @@ jobs:
     
     strategy:
       matrix:
-        node-version: [18.x, 20.x, 22.x]
+        node-version: [20.x, 22.x]
     
     steps:
     - name: Checkout repository
@@ -23,23 +23,6 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         # cache: 'npm'
-
-    # DEBUGGING STEP - Add this to see what's happening
-    - name: Debug - Show directory structure
-      run: |
-        echo "Current directory: $(pwd)"
-        echo "Files in root:"
-        ls -la
-        echo "Server folder exists? $(if [ -d server ]; then echo 'YES'; else echo 'NO'; fi)"
-        if [ -d server ]; then
-          echo "Files in server:"
-          ls -la server/
-        fi
-        echo "Client folder exists? $(if [ -d client ]; then echo 'YES'; else echo 'NO'; fi)"
-        if [ -d client ]; then
-          echo "Files in client:"
-          ls -la client/
-        fi    
 
     # ---------- CLIENT TESTS ----------
     - name: Install client dependencies
