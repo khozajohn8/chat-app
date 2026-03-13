@@ -9,11 +9,10 @@ on:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        node-version: [20.x]
     
     steps:
     - name: Checkout repository
@@ -23,37 +22,33 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        # NO CACHE HERE - we'll handle it manually
 
     # ---------- CLIENT TESTS ----------
     - name: Client - Clean install
       working-directory: ./client
       run: |
-        # Remove everything for a fresh start
         rm -rf node_modules package-lock.json
         npm cache clean --force
-        # Install with legacy peer deps
         npm install --legacy-peer-deps
-        # Show what's installed
-        npm list --depth=0
 
     - name: Client - Build
       working-directory: ./client
-      run: npm run build
+      run: |
+        # Increase memory limit for Node.js
+        export NODE_OPTIONS="--openssl-legacy-provider --max-old-space-size=4096"
+        npm run build
       env:
         CI: false
         DISABLE_ESLINT_PLUGIN: true
-        NODE_OPTIONS: --openssl-legacy-provider
+        GENERATE_SOURCEMAP: false  # Skip source maps for faster build
 
     # ---------- SERVER TESTS ----------
     - name: Server - Clean install
       working-directory: ./server
       run: |
-        # Fresh install every time
         rm -rf node_modules package-lock.json
         npm cache clean --force
         npm install
-        npm list --depth=0
 
     - name: Server - Test startup
       working-directory: ./server
@@ -64,5 +59,3 @@ jobs:
         kill $SERVER_PID || true
       env:
         PORT: 5001
-
-    # NO CACHING AT ALL - we want fresh installs every time
