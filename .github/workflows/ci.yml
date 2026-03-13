@@ -1,0 +1,122 @@
+
+name: CI/CD - Chat Application
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+env:
+  CI: false
+  NODE_OPTIONS: --openssl-legacy-provider
+  DISABLE_ESLINT_PLUGIN: true
+  GENERATE_SOURCEMAP: false
+
+jobs:
+  client:
+    name: Client - Build & Test
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [20.x]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Clean install dependencies
+        working-directory: ./client
+        run: |
+          echo "Cleaning previous installations..."
+          rm -rf node_modules package-lock.json
+          npm cache clean --force
+          
+          echo "Installing dependencies..."
+          npm install --legacy-peer-deps --force
+          
+          echo "Fixing ajv compatibility..."
+          npm install ajv@8 ajv-keywords@5 --save-dev --force
+          
+          echo "Dependencies installed successfully"
+          npm list ajv ajv-keywords --depth=0
+
+      - name: Build application
+        working-directory: ./client
+        run: |
+          echo "Building client application..."
+          rm -rf node_modules/.cache
+          npm run build
+        env:
+          SKIP_PREFLIGHT_CHECK: true
+
+      - name: Verify build
+        working-directory: ./client
+        run: |
+          if [ -d "build" ]; then
+            echo "✅ Build directory exists"
+            echo "📊 Build size: $(du -sh build | cut -f1)"
+          else
+            echo "❌ Build failed - no build directory"
+            exit 1
+          fi
+
+  server:
+    name: Server - Test
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [20.x]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        working-directory: ./server
+        run: |
+          echo "Cleaning..."
+          rm -rf node_modules package-lock.json
+          npm cache clean --force
+          
+          echo "Installing server dependencies..."
+          npm install
+          
+          echo "Server dependencies installed"
+          npm list --depth=0
+
+      - name: Test server startup
+        working-directory: ./server
+        run: |
+          echo "Testing server startup..."
+          node -e "require('./index.js')" &
+          SERVER_PID=$!
+          echo "Server started with PID: $SERVER_PID"
+          
+          echo "Waiting 5 seconds for stability..."
+          sleep 5
+          
+          if kill -0 $SERVER_PID 2>/dev/null; then
+            echo "✅ Server is running stably"
+            kill $SERVER_PID
+            echo "🛑 Server stopped gracefully"
+          else
+            echo "❌ Server crashed during startup"
+            exit 1
+          fi
+        env:
+          PORT: 5001

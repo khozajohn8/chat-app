@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useLocation } from 'react-router-dom';
 import queryString from 'query-string';
 import io from "socket.io-client";
 
@@ -13,7 +14,8 @@ const ENDPOINT = 'http://localhost:5001';
 
 let socket;
 
-const Chat = ({ location }) => {
+const Chat = () => {
+  const location = useLocation();
   const [name, setName] = useState('');
   const [room, setRoom] = useState('');
   const [users, setUsers] = useState('');
@@ -23,7 +25,9 @@ const Chat = ({ location }) => {
   useEffect(() => {
     const { name, room } = queryString.parse(location.search);
 
-    socket = io(ENDPOINT);
+    socket = io(ENDPOINT, {
+      transports: ['websocket', 'polling']
+    });
 
     setRoom(room);
     setName(name)
@@ -33,7 +37,11 @@ const Chat = ({ location }) => {
         alert(error);
       }
     });
-  }, [ENDPOINT, location.search]);
+    
+    return () => {
+      socket.disconnect();
+    };
+  }, [location.search]);
   
   useEffect(() => {
     socket.on('message', message => {
@@ -43,7 +51,7 @@ const Chat = ({ location }) => {
     socket.on("roomData", ({ users }) => {
       setUsers(users);
     });
-}, []);
+  }, []);
 
   const sendMessage = (event) => {
     event.preventDefault();
