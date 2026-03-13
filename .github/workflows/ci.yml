@@ -51,10 +51,14 @@ jobs:
     - name: Install server dependencies
       working-directory: ./server
       run: |
-        # Remove any cached node_modules
-        rm -rf node_modules
-        # Use npm install instead of npm ci
+        # Completely remove everything
+        rm -rf node_modules package-lock.json
+        # Clear npm cache
+        npm cache clean --force
+        # Fresh install
         npm install
+        # Show what's installed (for debugging)
+        npm list --depth=0
 
     - name: Test server startup
       working-directory: ./server
