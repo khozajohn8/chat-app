@@ -9,9 +9,9 @@ on:
     branches: [main, master]
 
 env:
-  AWS_REGION: us-east-1  # Change this to your preferred region
-  ECR_REPOSITORY_CLIENT: chat-app
-  ECR_REPOSITORY_SERVER: chat-app
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY_CLIENT: chat-app-client
+  ECR_REPOSITORY_SERVER: chat-app-server
 
 jobs:
   build-and-push:
@@ -99,7 +99,7 @@ jobs:
 
       - name: Run Trivy vulnerability scanner (client)
         uses: aquasecurity/trivy-action@master
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'pull_request'
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_CLIENT }}:latest
           format: 'table'
@@ -108,7 +108,7 @@ jobs:
 
       - name: Run Trivy vulnerability scanner (server)
         uses: aquasecurity/trivy-action@master
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'pull_request'
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_SERVER }}:latest
           format: 'table'
