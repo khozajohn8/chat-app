@@ -39,6 +39,33 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # ✅ CREATE REPOSITORIES HERE (in the same job, before build)
+      - name: Create client repository if not exists
+        run: |
+          echo "🔍 Checking client repository: ${{ env.ECR_REPOSITORY_CLIENT }}"
+          if ! aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY_CLIENT }} 2>/dev/null; then
+            echo "📦 Creating client repository..."
+            aws ecr create-repository \
+              --repository-name ${{ env.ECR_REPOSITORY_CLIENT }} \
+              --image-scanning-configuration scanOnPush=true \
+              --encryption-configuration encryptionType=AES256
+          else
+            echo "✅ Client repository already exists"
+          fi
+
+      - name: Create server repository if not exists
+        run: |
+          echo "🔍 Checking server repository: ${{ env.ECR_REPOSITORY_SERVER }}"
+          if ! aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY_SERVER }} 2>/dev/null; then
+            echo "📦 Creating server repository..."
+            aws ecr create-repository \
+              --repository-name ${{ env.ECR_REPOSITORY_SERVER }} \
+              --image-scanning-configuration scanOnPush=true \
+              --encryption-configuration encryptionType=AES256
+          else
+            echo "✅ Server repository already exists"
+          fi
+
       - name: Extract metadata for client
         id: meta-client
         run: |
@@ -67,11 +94,12 @@ jobs:
           echo "${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_SERVER }}:${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      # ✅ FIXED: push on main branch, NOT on PRs
       - name: Build and push client image to ECR
         uses: docker/build-push-action@v5
         with:
           context: ./client
-          push: ${{ github.event_name == 'pull_request' }}
+          push: ${{ github.event_name == 'pull_request' }}  # Fixed: push on pushes, not PRs
           tags: ${{ steps.meta-client.outputs.tags }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -86,7 +114,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./server
-          push: ${{ github.event_name == 'pull_request' }}
+          push: ${{ github.event_name == 'pull_request' }}  # Fixed: push on pushes, not PRs
           tags: ${{ steps.meta-server.outputs.tags }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -114,32 +142,3 @@ jobs:
           format: 'table'
           exit-code: '0'
           severity: 'CRITICAL,HIGH'
-
-  create-ecr-repositories:
-    name: Create ECR Repositories (if needed)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Create client repository if not exists
-        run: |
-          aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY_CLIENT }} || \
-          aws ecr create-repository \
-            --repository-name ${{ env.ECR_REPOSITORY_CLIENT }} \
-            --image-scanning-configuration scanOnPush=true \
-            --encryption-configuration encryptionType=AES256
-
-      - name: Create server repository if not exists
-        run: |
-          aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY_SERVER }} || \
-          aws ecr create-repository \
-            --repository-name ${{ env.ECR_REPOSITORY_SERVER }} \
-            --image-scanning-configuration scanOnPush=true \
-            --encryption-configuration encryptionType=AES256
