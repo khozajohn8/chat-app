@@ -94,12 +94,11 @@ jobs:
           echo "${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_SERVER }}:${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      # ✅ FIXED: push on main branch, NOT on PRs
       - name: Build and push client image to ECR
         uses: docker/build-push-action@v5
         with:
           context: ./client
-          push: ${{ github.event_name == 'pull_request' }}  # Fixed: push on pushes, not PRs
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta-client.outputs.tags }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -114,7 +113,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./server
-          push: ${{ github.event_name == 'pull_request' }}  # Fixed: push on pushes, not PRs
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta-server.outputs.tags }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -127,7 +126,7 @@ jobs:
 
       - name: Run Trivy vulnerability scanner (client)
         uses: aquasecurity/trivy-action@master
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'pull_request'
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_CLIENT }}:latest
           format: 'table'
@@ -136,7 +135,7 @@ jobs:
 
       - name: Run Trivy vulnerability scanner (server)
         uses: aquasecurity/trivy-action@master
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'pull_request'
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_SERVER }}:latest
           format: 'table'
