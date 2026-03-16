@@ -9,7 +9,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install ALL dependencies (including dev dependencies for build)
-RUN npm install --legacy-peer-deps --force
+RUN npm install --legacy-peer-deps --force \
+    npm install react-dev-utils --save-dev --force
 
 # Copy source code
 COPY . .
