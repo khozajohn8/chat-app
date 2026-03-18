@@ -20,9 +20,13 @@ ENV NODE_OPTIONS=--openssl-legacy-provider
 ENV CI=false
 ENV DISABLE_ESLINT_PLUGIN=true
 ENV GENERATE_SOURCEMAP=false
+ARG REACT_APP_SERVER_URL
+ENV REACT_APP_SERVER_URL=$REACT_APP_SERVER_URL
 
 # Build the React app
-RUN npm run build
+
+RUN echo "Building with server URL: $REACT_APP_SERVER_URL" && \
+    npm run build
 
 # Stage 2: Production
 FROM node:20-alpine
