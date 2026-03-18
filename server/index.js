@@ -47,6 +47,10 @@ const io = socketio(server, {
 
 app.use(router);
 
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 io.on('connect', (socket) => {
   console.log('✅ New client connected:', socket.id);
 
