@@ -10,7 +10,7 @@ import Input from '../Input/Input';
 
 import './Chat.css';
 
-const ENDPOINT = 'http://localhost:5001';
+const ENDPOINT = process.env.REACT_APP_SERVER_URL || 'http://localhost:5001';
 
 let socket;
 
