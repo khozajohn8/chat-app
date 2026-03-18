@@ -9,10 +9,16 @@ const router = require('./router');
 const app = express();
 const server = http.createServer(app);
 
+const allowedOrigins = [
+  'http://localhost:3001',
+  'https://rxhssdpvbc.us-east-1.awsapprunner.com' 
+];
 // CORS setup
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || origin.startsWith('http://localhost:')) {
+    if (!origin) return callback(null, true);
+    // Check if origin is allowed
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -24,7 +30,11 @@ app.use(cors({
 const io = socketio(server, {
   cors: {
     origin: (origin, callback) => {
-      if (!origin || origin.startsWith('http://localhost:')) {
+      // Allow requests with no origin
+      if (!origin) return callback(null, true);
+      
+      // Check if origin is allowed
+      if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
