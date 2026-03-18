@@ -160,6 +160,8 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./client
+          build-args: |
+            REACT_APP_SERVER_URL=${{ vars.SERVER_URL }}
           push: true
           tags: ${{ steps.meta-client.outputs.tags }}
           labels: |
