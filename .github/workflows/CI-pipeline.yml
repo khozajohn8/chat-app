@@ -1,25 +1,99 @@
-# .github/workflows/docker-ecr.yml
-name: Build and Push to AWS ECR
+# .github/workflows/ci-cd.yml
+name: CI/CD - Test, Build, Push and Deploy
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, develop]
     tags: ['v*']
   pull_request:
     branches: [main, master]
 
 env:
+  CI: false
+  NODE_OPTIONS: --openssl-legacy-provider
+  DISABLE_ESLINT_PLUGIN: true
+  GENERATE_SOURCEMAP: false
   AWS_REGION: us-east-1
   ECR_REPOSITORY_CLIENT: chat-app-client
   ECR_REPOSITORY_SERVER: chat-app-server
 
 jobs:
-  build-and-push:
-    name: Build and Push to ECR
+  test:
+    name: Test Code
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      # Client Tests
+      - name: Client - Install dependencies
+        working-directory: ./client
+        run: |
+          rm -rf node_modules package-lock.json
+          npm cache clean --force
+          npm install --legacy-peer-deps --force
+          npm install ajv@8 ajv-keywords@5 --save-dev --force
+
+      - name: Client - Build
+        working-directory: ./client
+        run: |
+          rm -rf node_modules/.cache
+          npm run build
+        env:
+          SKIP_PREFLIGHT_CHECK: true
+
+      - name: Client - Verify build
+        working-directory: ./client
+        run: |
+          if [ -d "build" ]; then
+            echo "✅ Build directory exists (size: $(du -sh build | cut -f1))"
+          else
+            echo "❌ Build failed"
+            exit 1
+          fi
+
+      # Server Tests
+      - name: Server - Install dependencies
+        working-directory: ./server
+        run: |
+          rm -rf node_modules package-lock.json
+          npm cache clean --force
+          npm install
+
+      - name: Server - Test startup
+        working-directory: ./server
+        run: |
+          node -e "require('./index.js')" &
+          SERVER_PID=$!
+          sleep 5
+          if kill -0 $SERVER_PID 2>/dev/null; then
+            echo "✅ Server started successfully"
+            kill $SERVER_PID
+          else
+            echo "❌ Server failed to start"
+            exit 1
+          fi
+        env:
+          PORT: 5001
+
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: test  # Only runs if tests pass
+    if: github.event_name != 'pull_request'  # Only on pushes/tags, not PRs
     permissions:
       contents: read
-      id-token: write  # Needed for OIDC authentication
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -39,103 +113,84 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # ✅ CREATE REPOSITORIES HERE (in the same job, before build)
-      - name: Create client repository if not exists
+      # Create repositories if needed
+      - name: Create ECR repositories
         run: |
-          echo "🔍 Checking client repository: ${{ env.ECR_REPOSITORY_CLIENT }}"
-          if ! aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY_CLIENT }} 2>/dev/null; then
-            echo "📦 Creating client repository..."
-            aws ecr create-repository \
-              --repository-name ${{ env.ECR_REPOSITORY_CLIENT }} \
-              --image-scanning-configuration scanOnPush=true \
-              --encryption-configuration encryptionType=AES256
-          else
-            echo "✅ Client repository already exists"
-          fi
+          for repo in ${{ env.ECR_REPOSITORY_CLIENT }} ${{ env.ECR_REPOSITORY_SERVER }}; do
+            echo "🔍 Checking $repo..."
+            if ! aws ecr describe-repositories --repository-names $repo 2>/dev/null; then
+              echo "📦 Creating $repo..."
+              aws ecr create-repository \
+                --repository-name $repo \
+                --image-scanning-configuration scanOnPush=true
+            else
+              echo "✅ $repo exists"
+            fi
+          done
 
-      - name: Create server repository if not exists
-        run: |
-          echo "🔍 Checking server repository: ${{ env.ECR_REPOSITORY_SERVER }}"
-          if ! aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY_SERVER }} 2>/dev/null; then
-            echo "📦 Creating server repository..."
-            aws ecr create-repository \
-              --repository-name ${{ env.ECR_REPOSITORY_SERVER }} \
-              --image-scanning-configuration scanOnPush=true \
-              --encryption-configuration encryptionType=AES256
-          else
-            echo "✅ Server repository already exists"
-          fi
-
+      # Metadata for client
       - name: Extract metadata for client
         id: meta-client
         run: |
           echo "tags<<EOF" >> $GITHUB_OUTPUT
           echo "${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_CLIENT }}:latest" >> $GITHUB_OUTPUT
-          
           if [[ "${{ github.ref }}" == "refs/tags/"* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
             echo "${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_CLIENT }}:$VERSION" >> $GITHUB_OUTPUT
           fi
-          
           echo "${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_CLIENT }}:${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      # Metadata for server
       - name: Extract metadata for server
         id: meta-server
         run: |
           echo "tags<<EOF" >> $GITHUB_OUTPUT
           echo "${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_SERVER }}:latest" >> $GITHUB_OUTPUT
-          
           if [[ "${{ github.ref }}" == "refs/tags/"* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
             echo "${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_SERVER }}:$VERSION" >> $GITHUB_OUTPUT
           fi
-          
           echo "${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_SERVER }}:${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Build and push client image to ECR
+      # Build and push client
+      - name: Build and push client image
         uses: docker/build-push-action@v5
         with:
           context: ./client
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta-client.outputs.tags }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=${{ github.event.repository.updated_at }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
 
-      - name: Build and push server image to ECR
+      # Build and push server
+      - name: Build and push server image
         uses: docker/build-push-action@v5
         with:
           context: ./server
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta-server.outputs.tags }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=${{ github.event.repository.updated_at }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
 
-      - name: Run Trivy vulnerability scanner (client)
+      # Vulnerability scanning
+      - name: Scan client image
         uses: aquasecurity/trivy-action@master
-        if: github.event_name != 'pull_request'
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_CLIENT }}:latest
           format: 'table'
           exit-code: '0'
           severity: 'CRITICAL,HIGH'
 
-      - name: Run Trivy vulnerability scanner (server)
+      - name: Scan server image
         uses: aquasecurity/trivy-action@master
-        if: github.event_name != 'pull_request'
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_SERVER }}:latest
           format: 'table'
