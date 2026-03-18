@@ -1,30 +1,29 @@
-// client/server.js - Simple Express server for serving static files
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
-
 const app = express();
+
 const PORT = process.env.PORT || 3001;
 
-// Serve static files from the React build
-app.use(express.static(path.join(__dirname, 'build')));
-
-// Health check endpoint
+// Health check endpoint (required for App Runner)
 app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'healthy',
+  res.status(200).json({ 
+    status: 'healthy', 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    build: fs.existsSync(path.join(__dirname, 'build')) ? 'present' : 'missing'
+    uptime: process.uptime()
   });
 });
 
-// Handle React routing - serve index.html for all non-API routes
-app.get('*', (req, res) => {
+// Serve static files from React build
+app.use(express.static(path.join(__dirname, 'build')));
+
+// ✅ Handle all other routes - serve index.html for React Router
+app.get('/*splat', (req, res) => {
   res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
+// Start server
 app.listen(PORT, () => {
-  console.log(`✅ Client serving static files on port ${PORT}`);
-  console.log(`📁 Build directory: ${path.join(__dirname, 'build')}`);
+  console.log(`✅ Client server running on port ${PORT}`);
+  console.log(`📁 Serving static files from: ${path.join(__dirname, 'build')}`);
+  console.log(`🔍 Health check: http://localhost:${PORT}/health`);
 });
