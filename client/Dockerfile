@@ -40,7 +40,7 @@ COPY --from=builder /app/build ./build
 COPY server.js ./
 
 # Install only express for serving
-RUN npm install express
+RUN npm install express express-rate-limit
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \

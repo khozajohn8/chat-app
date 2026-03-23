@@ -1,8 +1,22 @@
 const express = require('express');
 const path = require('path');
 const app = express();
+const rateLimit = require('express-rate-limit');
 
 const PORT = process.env.PORT || 3001;
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // Limit each IP to 200 requests per windowMs (higher than server since it's static files)
+  message: 'Too many requests from this IP, please try again after 15 minutes',
+  standardHeaders: true, // Return rate limit info in headers
+  legacyHeaders: false,
+  // Skip rate limiting for health check
+  skip: (req) => req.path === '/health'
+});
+
+// Apply rate limiter to all routes
+app.use(limiter);
 
 // Health check endpoint (required for App Runner)
 app.get('/health', (req, res) => {
