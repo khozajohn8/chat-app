@@ -70,5 +70,5 @@ jobs:
       uses: github/codeql-action/analyze@v3
       with:
         category: "/language:${{matrix.language}}"
-        # Upload results to GitHub Security tab
+        # Upload results to GitHub Security tabb
         upload: always
