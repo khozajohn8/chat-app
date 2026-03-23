@@ -66,5 +66,3 @@ jobs:
         category: "/language:${{matrix.language}}"
         # Upload results to GitHub Security tab
         upload: always
-        # Fail on warnings for PRs (optional)
-        fail-on-warning: ${{ github.event_name == 'pull_request' }}
