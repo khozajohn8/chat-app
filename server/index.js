@@ -9,6 +9,17 @@ const router = require('./router');
 const app = express();
 const server = http.createServer(app);
 
+const limiter = rateLimit({
+  windowMs: 2 * 60 * 1000, // 2 minutes
+  max: 40, // Limit each IP to 40 requests per windowMs
+  message: 'Too many requests from this IP, please try again after 15 minutes',
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Apply rate limiter to all routes (except socket.io)
+app.use(limiter);
+
 const allowedOrigins = [
   'http://localhost:3001',
   'https://rxhssdpvbc.us-east-1.awsapprunner.com' 
